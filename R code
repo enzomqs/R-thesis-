@@ -1,0 +1,186 @@
+#################################
+########### DATA ################
+#################################
+
+#https://www.statology.org/residual-plot-r/
+ 
+library(readxl)
+library(stats)
+
+Book1 <- read_excel("Desktop/Thesis/data/MonthlyData2.xlsx")
+View(MonthlyData)
+Book1 <- MonthlyData2
+
+
+EURUSD <- Book1$`RER EURUSD %`
+#EU
+ConsumerConfEUR <- Book1$`Consumer Confid, Final EUR`
+CurrentAccountEUR <- Book1$`Current account EUR`
+EmploymentEUR <- Book1$`Unemployment EUR`
+TradeEUR <- Book1$`Trade EUR`
+IndustrialEUR <- Book1$`Industrial production EUR`
+PPIEUR <- Book1$`Producer price EUR`
+SalesEUR <- Book1$`Retail Sales EUR`
+YEUR <- Book1$`10 Y RATE EUR`
+BCERATE <- Book1$`Evolution Taux BCE`
+#US
+ConsumerConfUS <- Book1$`Consumer confidence US`
+CurrentAccountUS <- Book1$`Current account US`
+EmploymentUS <- Book1$`Unemployment US`
+TradeUS <- Book1$`Trade US`
+IndustrialUS <- Book1$`Industrial prod US`
+PPIUS <- Book1$`Producer price US`
+SalesUS <- Book1$`Retail Sales US`
+YUS <- Book1$`10 Y RATE US`
+FEDRATE <- Book1$`Evolution taux FED`
+
+#################################
+########### OLS #################
+#################################
+
+#ALL
+OLST <- lm(EURUSD ~  CurrentAccountEUR + EmploymentEUR + TradeEUR + 
+                        YEUR + BCERATE + CurrentAccountUS + EmploymentUS + TradeUS + YUS + FEDRATE + ConsumerConfEUR + ConsumerConfUS+ 
+             IndustrialEUR + PPIEUR + SalesEUR + IndustrialUS + PPIUS + SalesUS)
+summary(OLST)
+
+Intercept <--3.553e-03
+B1 <-3.644e-05
+B2<-1.264e-01
+B3<--3.033e-04
+B4<-1.754e-03
+B5<-3.813e-02
+B6<--2.645e-05
+B7<-1.089e-01
+B8 <- -2.900e-02
+B9 <-4.580e-02
+B10 <--8.833e-04
+B11<- 3.492e-03
+B12<- 4.933e-02
+B13 <- -2.283e-01
+B14 <- 6.871e-01
+B15 <-2.700e-01
+B16<- -2.100e-01
+B17 <- 8.527e-02
+B18 <-7.085e-01
+
+library(data.table)
+setDT(Book1)
+Book1[, PredictionT :=  Intercept + B1 * CurrentAccountEUR + B2 * EmploymentEUR + B3* TradeEUR + 
+        B4 * YEUR + B5 * BCERATE + B6 *  CurrentAccountUS + B7 * EmploymentUS + B8 * TradeUS + B9 * YUS + 
+        B10 * FEDRATE + B11 * ConsumerConfEUR + B12 *ConsumerConfUS+ 
+        B13 * IndustrialEUR + B14 * PPIEUR + B15 * SalesEUR + B16* IndustrialUS + B17 * PPIUS + B18 * SalesUS]
+View(Book1)
+
+library(openxlsx)
+write.xlsx(Book1,file = "writeXLSX2.xlsx")
+
+REER <- Book1$`REER EURUSD`
+PredictionT <- Book1$PredictionT
+
+
+
+##################################################################@
+n <- length(na.omit(REER))
+n
+Book1$Forecast <- 0 # create a new column empty 
+Forecast <- Book1$Forecast # create a name
+Forecast[n] <- REER[n] # change last row 
+Forecast[n]
+View(Book1)
+
+Forecast[(n-1):(n-1)] <- REER[(n-1):(n-1)] * (1+ PredictionT[(n-1):(n-1)])
+Forecast[(n-1):(n-1)] # change row N° n-1
+
+Forecast[1:(n-2)] <- Forecast[2:(n-1)] * (1+ PredictionT[1 :(n-2)]) # formula 
+View(Book1)
+##################################################################@
+
+
+
+#MACRO INDICATORS
+
+OLS1 <- lm(EURUSD ~  CurrentAccountEUR + EmploymentEUR + TradeEUR + 
+             YEUR + BCERATE + IndustrialEUR + PPIEUR + IndustrialUS + 
+             PPIUS + CurrentAccountUS + EmploymentUS + TradeUS + YUS + FEDRATE)
+summary(OLS1)
+
+#Residuals analysis macro indicators
+res <- resid(OLS1)
+plot(fitted(OLS1), res)
+abline(0,0)
+qqnorm(res)#create Q-Q plot for residuals
+qqline(res) #add a straight diagonal line to the plot
+plot(density(res))#Create density plot of residuals
+
+
+#SURVEYS INDICATORS 
+
+OLS2 <- lm(EURUSD ~ ConsumerConfEUR + SalesEUR + ConsumerConfUS + SalesUS )
+summary(OLS2)
+
+#Residuals analysis surveys indicators
+res2 <- resid(OLS2) 
+plot(fitted(OLS2), res2)
+abline(0,0)
+qqnorm(res2)
+qqline(res2) 
+plot(density(res2))
+
+########################
+#########LAG############
+########################
+
+lag1 <- lag(PPIEUR, -100)
+lag1
+OLS1 <- lm(lag1 ~  CurrentAccountEUR + EmploymentEUR + TradeEUR + YEUR + BCERATE + CurrentAccountUS + EmploymentUS + TradeUS + YUS + FEDRATE)
+summary(OLS1)
+
+x1 <- c(1,2,3,4,5)
+x1
+lagx <- lag(x1)
+lagx
+lag(x = 1:5, k = 2)
+
+lag(Book1$Period)
+
+
+
+## Haussman tets 
+summary(OLS2, diagnostics = TRUE)
+plot(OLS1, 3) #http://www.sthda.com/english/articles/39-regression-model-diagnostics/161-linear-regression-assumptions-and-diagnostics-in-r-essentials/
+
+
+
+#diagnostics r
+#https://data.library.virginia.edu/diagnostic-plots/
+library(plm)
+
+data("Gasoline", package = "plm")
+form <- lgaspcar ~ lincomep + lrpmg + lcarpcap
+wi <- plm(form, data = Gasoline, model = "within")
+re <- plm(form, data = Gasoline, model = "random")
+phtest(wi, re)
+phtest(form, data = Gasoline)
+phtest(form, data = Gasoline, method = "aux")
+
+# robust Hausman test (regression-based)
+phtest(form, data = Gasoline, method = "aux", vcov = vcovHC)
+
+# robust Hausman test with vcov supplied as a
+# function and additional parameters
+phtest(form, data = Gasoline, method = "aux",
+       vcov = function(x) vcovHC(x, method="white2", type="HC3"))
+
+
+
+
+
+
+
+
+
+
+
+
+
